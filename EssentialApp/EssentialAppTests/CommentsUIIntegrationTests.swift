@@ -143,13 +143,10 @@ class CommentsUIIntegrationTests: XCTestCase {
             sut?.loadViewIfNeeded()
         }
         
-        weak var weakSUT = sut
-        
         XCTAssertEqual(cancelCallCount, 0)
         
         sut = nil
         
-        XCTAssertNil(weakSUT)
         XCTAssertEqual(cancelCallCount, 1)
     }
     
