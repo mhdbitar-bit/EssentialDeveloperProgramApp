@@ -14,6 +14,7 @@ private class UIWindowSpy: UIWindow {
     }
 }
 
+@available(iOS 14.0, *)
 class SceneDelegateTests: XCTestCase {
     
     func test_configureWindow_setsWindowAsKeyAndVisible() {

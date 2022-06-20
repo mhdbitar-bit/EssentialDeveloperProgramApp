@@ -30,19 +30,19 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return NullStore()
         }
     }()
-
+    
     private lazy var localFeedLoader: LocalFeedLoader = {
         LocalFeedLoader(store: store, currentDate: Date.init)
     }()
     
     private lazy var baseURL = URL(string: "https://ile-api.essentialdeveloper.com/essential-feed")!
-
+    
     private lazy var navigationController = UINavigationController(
         rootViewController: FeedUIComposer.feedComposedWith(
             feedLoader: makeRemoteFeedLoaderWithLocalFallback,
             imageLoader: makeLocalImageLoaderWithRemoteFallback,
             selection: showComments))
-
+    
     convenience init(httpClient: HTTPClient, store: FeedStore & FeedImageDataStore) {
         self.init()
         self.httpClient = httpClient
@@ -51,7 +51,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let scene = (scene as? UIWindowScene) else { return }
-    
+        
         window = UIWindow(windowScene: scene)
         configureWindow()
     }
@@ -118,14 +118,50 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     
     private func makeLocalImageLoaderWithRemoteFallback(url: URL) -> FeedImageDataLoader.Publisher {
         let localImageLoader = LocalFeedImageDataLoader(store: store)
-
+        
         return localImageLoader
             .loadImageDataPublisher(from: url)
-            .fallback(to: { [httpClient] in
+            .logCacheMisses(url: url, logger: logger)
+            .fallback(to: { [httpClient, logger] in
                 httpClient
                     .getPublisher(url: url)
+                    .logErrors(url: url, logger: logger)
+                    .logElapsedTime(url: url, logger: logger)
                     .tryMap(FeedImageDataMapper.map)
                     .caching(to: localImageLoader, using: url)
             })
+    }
+}
+
+extension Publisher {
+    @available(iOS 14.0, *)
+    func logCacheMisses(url: URL, logger: Logger) -> AnyPublisher<Output, Failure> {
+        return handleEvents(receiveCompletion: { result in
+            if case .failure = result {
+                logger.trace("Cache miss for url: \(url)")
+            }
+        }).eraseToAnyPublisher()
+    }
+    
+    @available(iOS 14.0, *)
+    func logErrors(url: URL, logger: Logger) -> AnyPublisher<Output, Failure> {
+        return handleEvents(receiveCompletion: { result in
+            if case let .failure(error) = result {
+                logger.trace("Failed to load url: \(url) with error: \(error.localizedDescription)")
+            }
+        }).eraseToAnyPublisher()
+    }
+    
+    @available(iOS 14.0, *)
+    func logElapsedTime(url: URL, logger: Logger) -> AnyPublisher<Output, Failure> {
+        var startTime = CACurrentMediaTime()
+        
+        return handleEvents(receiveSubscription: { _ in
+            logger.trace("Started Loading url: \(url)")
+            startTime = CACurrentMediaTime()
+        }, receiveCompletion: { result in
+            let elapsed = CACurrentMediaTime() - startTime
+            logger.trace("Finished loading url: \(url) in \(elapsed) seconds")
+        }).eraseToAnyPublisher()
     }
 }
