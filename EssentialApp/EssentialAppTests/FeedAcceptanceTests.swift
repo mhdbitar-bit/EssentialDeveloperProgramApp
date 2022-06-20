@@ -7,6 +7,7 @@ import EssentialFeed
 import EssentialFeediOS
 @testable import EssentialApp
 
+@available(iOS 14.0, *)
 class FeedAcceptanceTests: XCTestCase {
     
     func test_onLaunch_displaysRemoteFeedWhenCustomerHasConnectivity() {
